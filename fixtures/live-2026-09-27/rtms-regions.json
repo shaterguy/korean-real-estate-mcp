@@ -1,0 +1,29 @@
+{
+  "sido_http": {
+    "ok": true,
+    "status": 200,
+    "ctype": "application/json;charset=utf-8",
+    "bytes": 1139
+  },
+  "gyeonggi": [
+    {
+      "signguCode": "41000",
+      "emdCode": "00000",
+      "ctprvnNm": "경기도"
+    }
+  ],
+  "sgg_http": {
+    "ok": true,
+    "status": 200,
+    "ctype": "application/json;charset=utf-8",
+    "bytes": 4345
+  },
+  "guri": [
+    {
+      "signguCode": "41310",
+      "emdCode": "00000",
+      "ctprvnNm": "경기도",
+      "signguNm": "구리시"
+    }
+  ]
+}

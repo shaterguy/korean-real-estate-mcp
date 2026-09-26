@@ -1,0 +1,35 @@
+{
+  "v41": {
+    "http": {
+      "ok": true,
+      "status": 200,
+      "ctype": "text/html;charset=UTF-8",
+      "bytes": 10
+    },
+    "json": {
+      "cnt": 41
+    }
+  },
+  "v41000": {
+    "http": {
+      "ok": true,
+      "status": 200,
+      "ctype": "text/html;charset=UTF-8",
+      "bytes": 10
+    },
+    "json": {
+      "cnt": 41
+    }
+  },
+  "vblank": {
+    "http": {
+      "ok": true,
+      "status": 200,
+      "ctype": "text/html;charset=UTF-8",
+      "bytes": 13
+    },
+    "json": {
+      "cnt": 21059
+    }
+  }
+}

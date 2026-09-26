@@ -1,0 +1,17 @@
+{
+  "name": "korean-real-estate-mcp",
+  "version": "0.1.0-dev1",
+  "private": true,
+  "type": "module",
+  "description": "Read-only Korean real-estate MCP using public no-secret RTMS, Naver Land and OpenStreetMap data",
+  "engines": {"node": "24.x"},
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check src/server.mjs && node --check src/providers/rtms.mjs && node --check src/providers/naver-land.mjs && node --check src/providers/places.mjs && node --check src/services.mjs && node --check .local/server.mjs && npm test",
+    "start:local": "node .local/server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "zod": "4.4.3"
+  }
+}

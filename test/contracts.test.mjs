@@ -1,0 +1,5 @@
+import test from "node:test";import assert from "node:assert/strict";import { TOOL_NAMES } from "../src/server.mjs";import { parsePriceHtml } from "../src/providers/naver-land.mjs";import { parseCsv } from "../src/providers/rtms.mjs";import { normalizeName } from "../src/common.mjs";
+test("required tool surface",()=>{for(const n of ["search_property","get_market_price","find_midpoint_property","get_current_listings","compare_actual_vs_asking","system_health"])assert.ok(TOOL_NAMES.includes(n));});
+test("naver price html parsing",()=>{assert.equal(parsePriceHtml("7<em class='txt_unit'>억</em> 5,000"),75000);assert.equal(parsePriceHtml("11<em class='txt_unit'>억</em>"),110000);});
+test("complex name normalization",()=>{assert.equal(normalizeName(" 성원 2차 아파트 "),normalizeName("성원2차"));});
+test("RTMS CSV parser preserves quoted commas",()=>{const text='설명줄\nNO,시군구,단지명,거래금액(만원)\n1,경기도 구리시 인창동,성원2차,"79,000"\n';const rows=parseCsv(text);assert.equal(rows.length,1);assert.equal(rows[0]["거래금액(만원)"],"79,000");});

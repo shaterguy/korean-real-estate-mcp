@@ -1,0 +1,250 @@
+{
+  "emd": [
+    {
+      "signguCode": "41310",
+      "emdCode": "10300",
+      "ctprvnNm": "경기도",
+      "signguNm": "구리시",
+      "emdNm": "인창동"
+    }
+  ],
+  "cortarNo": "4131010300",
+  "complex_pages": [
+    {
+      "page": 1,
+      "http": {
+        "ok": true,
+        "status": 200,
+        "ctype": "application/json;charset=UTF-8",
+        "bytes": 13505,
+        "url": "https://m.land.naver.com/cluster/ajax/complexList?cortarNo=4131010300&rletTpCd=APT&page=1"
+      },
+      "count": 20,
+      "more": true,
+      "matches": [
+        {
+          "hscpNo": "4565",
+          "hscpNm": "성원2차",
+          "hscpTypeCd": "A01",
+          "hscpTypeNm": "아파트",
+          "totDongCnt": 6,
+          "totHsehCnt": 461,
+          "genHsehCnt": 0,
+          "useAprvYmd": "2000.10.31.",
+          "repImgUrl": "/20180313_62/apt_realimage_1520928340159LxL5u_JPEG/f1c20cbdd763407df8401f5bfa7d28ff.jpg",
+          "dealCnt": 6,
+          "leaseCnt": 0,
+          "rentCnt": 1,
+          "strmRentCnt": 0,
+          "totalAtclCnt": 7,
+          "minSpc": "75.59",
+          "maxSpc": "169.72",
+          "dealPrcMin": "7<em class='txt_unit'>억</em> 5,000",
+          "dealPrcMax": "11<em class='txt_unit'>억</em>",
+          "isalePrcMin": "0",
+          "isalePrcMax": "0",
+          "isaleNotifSeq": "0",
+          "isaleScheLabel": "",
+          "isaleScheLabelPre": "",
+          "tourExist": false,
+          "isSeismic": false,
+          "totalElevatorCount": 0
+        }
+      ],
+      "sample": [
+        {
+          "hscpNo": "1659",
+          "hscpNm": "인창1단지주공",
+          "dealCnt": 6,
+          "leaseCnt": 1,
+          "rentCnt": 5,
+          "totHsehCnt": 1344
+        },
+        {
+          "hscpNo": "161759",
+          "hscpNm": "구리역롯데캐슬시그니처",
+          "dealCnt": 7,
+          "leaseCnt": 5,
+          "rentCnt": 7,
+          "totHsehCnt": 1180
+        },
+        {
+          "hscpNo": "121008",
+          "hscpNm": "e편한세상인창어반포레",
+          "dealCnt": 21,
+          "leaseCnt": 0,
+          "rentCnt": 4,
+          "totHsehCnt": 632
+        },
+        {
+          "hscpNo": "1661",
+          "hscpNm": "인창4단지주공",
+          "dealCnt": 12,
+          "leaseCnt": 1,
+          "rentCnt": 3,
+          "totHsehCnt": 1408
+        },
+        {
+          "hscpNo": "1662",
+          "hscpNm": "인창6단지주공",
+          "dealCnt": 6,
+          "leaseCnt": 0,
+          "rentCnt": 2,
+          "totHsehCnt": 1018
+        },
+        {
+          "hscpNo": "1660",
+          "hscpNm": "인창포레리움",
+          "dealCnt": 7,
+          "leaseCnt": 3,
+          "rentCnt": 2,
+          "totHsehCnt": 1229
+        },
+        {
+          "hscpNo": "1653",
+          "hscpNm": "건영",
+          "dealCnt": 7,
+          "leaseCnt": 0,
+          "rentCnt": 0,
+          "totHsehCnt": 573
+        },
+        {
+          "hscpNo": "3573",
+          "hscpNm": "인창해모로",
+          "dealCnt": 23,
+          "leaseCnt": 0,
+          "rentCnt": 0,
+          "totHsehCnt": 953
+        },
+        {
+          "hscpNo": "4568",
+          "hscpNm": "아름마을인창래미안",
+          "dealCnt": 11,
+          "leaseCnt": 0,
+          "rentCnt": 0,
+          "totHsehCnt": 816
+        },
+        {
+          "hscpNo": "18276",
+          "hscpNm": "인창e-편한세상2차",
+          "dealCnt": 9,
+          "leaseCnt": 0,
+          "rentCnt": 0,
+          "totHsehCnt": 621
+        }
+      ]
+    }
+  ],
+  "region_articles": {
+    "A1": {
+      "pages": [
+        {
+          "page": 1,
+          "http": {
+            "ok": true,
+            "status": 200,
+            "ctype": "application/json;charset=UTF-8",
+            "bytes": 4,
+            "url": "https://m.land.naver.com/cluster/ajax/articleList?rletTpCd=APT&tradTpCd=A1&cortarNo=4131010300&page=1"
+          },
+          "count": 0,
+          "match_count": 0,
+          "matches": [],
+          "sample": [],
+          "top_keys": [],
+          "more": null
+        }
+      ],
+      "target": []
+    },
+    "B1": {
+      "pages": [
+        {
+          "page": 1,
+          "http": {
+            "ok": true,
+            "status": 200,
+            "ctype": "application/json;charset=UTF-8",
+            "bytes": 4,
+            "url": "https://m.land.naver.com/cluster/ajax/articleList?rletTpCd=APT&tradTpCd=B1&cortarNo=4131010300&page=1"
+          },
+          "count": 0,
+          "match_count": 0,
+          "matches": [],
+          "sample": [],
+          "top_keys": [],
+          "more": null
+        }
+      ],
+      "target": []
+    },
+    "B2": {
+      "pages": [
+        {
+          "page": 1,
+          "http": {
+            "ok": true,
+            "status": 200,
+            "ctype": "application/json;charset=UTF-8",
+            "bytes": 4,
+            "url": "https://m.land.naver.com/cluster/ajax/articleList?rletTpCd=APT&tradTpCd=B2&cortarNo=4131010300&page=1"
+          },
+          "count": 0,
+          "match_count": 0,
+          "matches": [],
+          "sample": [],
+          "top_keys": [],
+          "more": null
+        }
+      ],
+      "target": []
+    }
+  },
+  "item_variants": {
+    "item_lgeo_complex": {
+      "http": {
+        "ok": true,
+        "status": 200,
+        "ctype": "application/json;charset=UTF-8",
+        "bytes": 4,
+        "url": "https://m.land.naver.com/cluster/ajax/articleList?itemId=4565&lgeo=4565&rletTpCd=APT&tradTpCd=A1&cortarNo=4131010300&page=1"
+      },
+      "count": 0,
+      "match_count": 0,
+      "matches": [],
+      "sample": [],
+      "top_keys": [],
+      "preview": null
+    },
+    "item_lgeo_cortar": {
+      "http": {
+        "ok": true,
+        "status": 200,
+        "ctype": "application/json;charset=UTF-8",
+        "bytes": 4,
+        "url": "https://m.land.naver.com/cluster/ajax/articleList?itemId=4565&lgeo=4131010300&rletTpCd=APT&tradTpCd=A1&cortarNo=4131010300&page=1"
+      },
+      "count": 0,
+      "match_count": 0,
+      "matches": [],
+      "sample": [],
+      "top_keys": [],
+      "preview": null
+    },
+    "hscp_only": {
+      "http": {
+        "ok": true,
+        "status": 200,
+        "ctype": "application/json;charset=UTF-8",
+        "bytes": 4,
+        "url": "https://m.land.naver.com/cluster/ajax/articleList?hscpNo=4565&rletTpCd=APT&tradTpCd=A1&cortarNo=4131010300&page=1"
+      },
+      "count": 0,
+      "match_count": 0,
+      "matches": [],
+      "sample": [],
+      "top_keys": [],
+      "preview": null
+    }
+  }
+}

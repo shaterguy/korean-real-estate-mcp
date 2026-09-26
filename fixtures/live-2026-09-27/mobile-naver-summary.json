@@ -1,0 +1,217 @@
+{
+  "searches": {
+    "구리 성원2차": {
+      "http": {
+        "ok": false,
+        "status": 302,
+        "location": "/complex/info/4565?imageUrl=https%3A%2F%2Fssl.pstatic.net%2Fstatic.land%2Fstatic%2Fspace%2F20231122&photoUrl=https%3A%2F%2Flandthumb-phinf.pstatic.net&myhouseUrl=https%3A%2F%2Fneo.land.naver.com&gladSdkUrl=https%3A%2F%2Fssl.pstatic.net%2Ftveta%2Flibs%2Fglad%2Fprod%2Fgfp-core.js&userAgent=Mozilla%2F5.0+%28Linux%3B+Android+15%3B+SM-S931N%29+AppleWebKit%2F537.36+%28KHTML%2C+like+Gecko%29+Chrome%2F131.0.0.0+Mobile+Safari%2F537.36&isMobile=true&isAndroid=true&isLandApp=false&isNaverPay=false&isNaverPayHeader=false&isLandAndroidApp=false&isLandIosApp=false&rootPath=query",
+        "ctype": "",
+        "bytes": 0,
+        "final_url": "https://m.land.naver.com/search/result/%EA%B5%AC%EB%A6%AC%20%EC%84%B1%EC%9B%902%EC%B0%A8"
+      },
+      "ids": [
+        "4565"
+      ]
+    },
+    "인창동 성원2차": {
+      "http": {
+        "ok": false,
+        "status": 302,
+        "location": "/complex/info/4565?imageUrl=https%3A%2F%2Fssl.pstatic.net%2Fstatic.land%2Fstatic%2Fspace%2F20231122&photoUrl=https%3A%2F%2Flandthumb-phinf.pstatic.net&myhouseUrl=https%3A%2F%2Fneo.land.naver.com&gladSdkUrl=https%3A%2F%2Fssl.pstatic.net%2Ftveta%2Flibs%2Fglad%2Fprod%2Fgfp-core.js&userAgent=Mozilla%2F5.0+%28Linux%3B+Android+15%3B+SM-S931N%29+AppleWebKit%2F537.36+%28KHTML%2C+like+Gecko%29+Chrome%2F131.0.0.0+Mobile+Safari%2F537.36&isMobile=true&isAndroid=true&isLandApp=false&isNaverPay=false&isNaverPayHeader=false&isLandAndroidApp=false&isLandIosApp=false&rootPath=query",
+        "ctype": "",
+        "bytes": 0,
+        "final_url": "https://m.land.naver.com/search/result/%EC%9D%B8%EC%B0%BD%EB%8F%99%20%EC%84%B1%EC%9B%902%EC%B0%A8"
+      },
+      "ids": [
+        "4565"
+      ]
+    },
+    "성원2차": {
+      "http": {
+        "ok": true,
+        "status": 200,
+        "location": null,
+        "ctype": "text/html;charset=UTF-8",
+        "bytes": 56538,
+        "final_url": "https://m.land.naver.com/search/result/%EC%84%B1%EC%9B%902%EC%B0%A8"
+      },
+      "ids": []
+    }
+  },
+  "complex_endpoints": [
+    {
+      "label": "complexListByCortarNo",
+      "http": {
+        "ok": true,
+        "status": 200,
+        "location": null,
+        "ctype": "application/json;charset=UTF-8",
+        "bytes": 407,
+        "final_url": "https://m.land.naver.com/complex/ajax/complexListByCortarNo?cortarNo=4131000000&realEstateType=APT"
+      },
+      "top_keys": [
+        "result",
+        "secInfo",
+        "dvsnInfo",
+        "loginYN",
+        "cityInfo"
+      ],
+      "count": 0,
+      "matches": [],
+      "sample": [],
+      "preview": "{'result': [], 'secInfo': {'CortarNo': '4131000000', 'CortarNm': '구리시', 'MapXCrdn': '127.129581', 'MapYCrdn': '37.594409', 'CortarType': 'dvsn'}, 'dvsnInfo': {'CortarNo': '4131000000', 'CortarNm': '구리시', 'MapXCrdn': '127.129581', 'MapYCrdn': '37.594409', 'CortarType': 'dvsn'}, 'loginYN': 'N', 'cityInfo': {'CortarNo': '4100000000', 'CortarNm': '경기도', 'MapXCrdn': '127.008689', 'MapYCrdn': '37.274939', 'CortarType': 'city'}}"
+    },
+    {
+      "label": "clusterComplexList",
+      "http": {
+        "ok": true,
+        "status": 200,
+        "location": null,
+        "ctype": "application/json;charset=UTF-8",
+        "bytes": 13337,
+        "final_url": "https://m.land.naver.com/cluster/ajax/complexList?cortarNo=4131000000&rletTpCd=APT&page=1"
+      },
+      "top_keys": [
+        "result",
+        "hasPaidPreSale",
+        "more",
+        "isPreSale"
+      ],
+      "count": 20,
+      "matches": [],
+      "sample": [
+        {
+          "hscpNo": "1659",
+          "hscpNm": "인창1단지주공",
+          "dealCnt": 6,
+          "leaseCnt": 1,
+          "rentCnt": 5,
+          "totHsehCnt": 1344
+        },
+        {
+          "hscpNo": "161759",
+          "hscpNm": "구리역롯데캐슬시그니처",
+          "dealCnt": 7,
+          "leaseCnt": 5,
+          "rentCnt": 7,
+          "totHsehCnt": 1180
+        },
+        {
+          "hscpNo": "121008",
+          "hscpNm": "e편한세상인창어반포레",
+          "dealCnt": 21,
+          "leaseCnt": 0,
+          "rentCnt": 4,
+          "totHsehCnt": 632
+        },
+        {
+          "hscpNo": "1661",
+          "hscpNm": "인창4단지주공",
+          "dealCnt": 12,
+          "leaseCnt": 1,
+          "rentCnt": 3,
+          "totHsehCnt": 1408
+        },
+        {
+          "hscpNo": "111358",
+          "hscpNm": "갈매역아이파크",
+          "dealCnt": 26,
+          "leaseCnt": 5,
+          "rentCnt": 1,
+          "totHsehCnt": 1196
+        },
+        {
+          "hscpNo": "1652",
+          "hscpNm": "대림한숲",
+          "dealCnt": 5,
+          "leaseCnt": 1,
+          "rentCnt": 0,
+          "totHsehCnt": 956
+        },
+        {
+          "hscpNo": "1649",
+          "hscpNm": "LG원앙",
+          "dealCnt": 7,
+          "leaseCnt": 0,
+          "rentCnt": 1,
+          "totHsehCnt": 824
+        },
+        {
+          "hscpNo": "1662",
+          "hscpNm": "인창6단지주공",
+          "dealCnt": 6,
+          "leaseCnt": 0,
+          "rentCnt": 2,
+          "totHsehCnt": 1018
+        },
+        {
+          "hscpNo": "1660",
+          "hscpNm": "인창포레리움",
+          "dealCnt": 7,
+          "leaseCnt": 3,
+          "rentCnt": 2,
+          "totHsehCnt": 1229
+        },
+        {
+          "hscpNo": "107679",
+          "hscpNm": "한라비발디",
+          "dealCnt": 27,
+          "leaseCnt": 1,
+          "rentCnt": 0,
+          "totHsehCnt": 1075
+        }
+      ],
+      "preview": null
+    }
+  ],
+  "ids": [
+    "4565"
+  ],
+  "articles": {
+    "4565:A1": {
+      "http": {
+        "ok": true,
+        "status": 200,
+        "location": null,
+        "ctype": "application/json;charset=UTF-8",
+        "bytes": 4,
+        "final_url": "https://m.land.naver.com/complex/getComplexArticleList?hscpNo=4565&tradTpCd=A1&order=date_&showR0=N&page=1"
+      },
+      "top_keys": [],
+      "count": 0,
+      "more": null,
+      "sample": [],
+      "preview": null
+    },
+    "4565:B1": {
+      "http": {
+        "ok": true,
+        "status": 200,
+        "location": null,
+        "ctype": "application/json;charset=UTF-8",
+        "bytes": 4,
+        "final_url": "https://m.land.naver.com/complex/getComplexArticleList?hscpNo=4565&tradTpCd=B1&order=date_&showR0=N&page=1"
+      },
+      "top_keys": [],
+      "count": 0,
+      "more": null,
+      "sample": [],
+      "preview": null
+    },
+    "4565:B2": {
+      "http": {
+        "ok": true,
+        "status": 200,
+        "location": null,
+        "ctype": "application/json;charset=UTF-8",
+        "bytes": 4,
+        "final_url": "https://m.land.naver.com/complex/getComplexArticleList?hscpNo=4565&tradTpCd=B2&order=date_&showR0=N&page=1"
+      },
+      "top_keys": [],
+      "count": 0,
+      "more": null,
+      "sample": [],
+      "preview": null
+    }
+  }
+}
