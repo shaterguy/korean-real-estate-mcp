@@ -1,6 +1,6 @@
 {
   "name": "korean-real-estate-mcp",
-  "version": "0.1.0-dev1",
+  "version": "0.1.0-dev2",
   "private": true,
   "type": "module",
   "description": "Read-only Korean real-estate MCP using public no-secret RTMS, Naver Land and OpenStreetMap data",

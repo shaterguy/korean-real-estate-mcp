@@ -7,3 +7,5 @@ Read-only Korean real-estate MCP candidate. It separates three kinds of values:
 3. MCP-computed comparisons and statistics (`computed`).
 
 No user API key, login cookie, account token, or personal credential is required. Naver individual listing detail can be rate-limited; current aggregate inventory counts and asking ranges use the public mobile complex-list surface and remain separately represented.
+
+Individual listing rows are exposed only after the anonymous live row contract is captured and explicitly allowlisted; otherwise the tool degrades to verified aggregate inventory and asking data.
