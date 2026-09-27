@@ -5,6 +5,90 @@ export const HOST_ALLOWLIST = new Set([
   "overpass-api.de", "overpass.kumi.systems", "overpass.nchc.org.tw",
 ]);
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const HOST_BOUND_HEADERS = new Set(["cookie", "authorization", "proxy-authorization"]);
+
+function deleteHeader(headers, name) {
+  const target = name.toLowerCase();
+  for (const key of Object.keys(headers)) if (key.toLowerCase() === target) delete headers[key];
+}
+function stripHostBoundHeaders(headers) {
+  for (const key of Object.keys(headers)) if (HOST_BOUND_HEADERS.has(key.toLowerCase())) delete headers[key];
+}
+function headerValue(headers, name) {
+  const target = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) if (key.toLowerCase() === target) return String(value);
+  return "";
+}
+function cancelBody(body) {
+  try {
+    const pending = body?.cancel?.();
+    if (pending?.catch) pending.catch(() => {});
+  } catch {}
+}
+function timeoutError(hostname) {
+  return new ProviderError("UPSTREAM_TIMEOUT", `${hostname}: request timed out`);
+}
+async function readChunk(reader, signal, hostname) {
+  if (signal.aborted) throw timeoutError(hostname);
+  let onAbort;
+  const aborted = new Promise((_, reject) => {
+    onAbort = () => reject(timeoutError(hostname));
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([reader.read(), aborted]);
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+  }
+}
+async function readBoundedBody(res, { maxBytes, signal, hostname }) {
+  const rawLength = res.headers.get("content-length");
+  const declaredLength = rawLength === null ? null : Number(rawLength);
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    cancelBody(res.body);
+    throw new ProviderError("RESPONSE_TOO_LARGE", `Response exceeds ${maxBytes} bytes`);
+  }
+  if (!res.body) return new Uint8Array();
+
+  const reader = res.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await readChunk(reader, signal, hostname);
+      if (done) break;
+      const chunk = value instanceof Uint8Array ? value : new Uint8Array(value);
+      total += chunk.byteLength;
+      if (total > maxBytes) {
+        try {
+          const pending = reader.cancel("response too large");
+          if (pending?.catch) pending.catch(() => {});
+        } catch {}
+        throw new ProviderError("RESPONSE_TOO_LARGE", `Response exceeds ${maxBytes} bytes`);
+      }
+      chunks.push(chunk);
+    }
+  } catch (e) {
+    try {
+      const pending = reader.cancel(e);
+      if (pending?.catch) pending.catch(() => {});
+    } catch {}
+    if (e?.code === "UPSTREAM_TIMEOUT" || e?.code === "RESPONSE_TOO_LARGE") throw e;
+    if (signal.aborted || e?.name === "AbortError") throw timeoutError(hostname);
+    throw new ProviderError("UPSTREAM_NETWORK", `${hostname}: ${e?.message || "response body read failed"}`);
+  } finally {
+    try { reader.releaseLock(); } catch {}
+  }
+  if (signal.aborted) throw timeoutError(hostname);
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
 
 export function validateExternalUrl(value) {
   let u;
@@ -25,12 +109,21 @@ export class HttpSession {
     this.fetchImpl = fetchImpl;
     this.cookies = new Map();
   }
-  cookieHeader() { return [...this.cookies.entries()].map(([k, v]) => `${k}=${v}`).join("; "); }
-  absorbCookies(headers) {
+  cookieHeader(url) {
+    const jar = this.cookies.get(url.origin);
+    return jar ? [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ") : "";
+  }
+  absorbCookies(url, headers) {
     const values = typeof headers.getSetCookie === "function" ? headers.getSetCookie() : [headers.get("set-cookie")].filter(Boolean);
+    if (!values.length) return;
+    let jar = this.cookies.get(url.origin);
+    if (!jar) {
+      jar = new Map();
+      this.cookies.set(url.origin, jar);
+    }
     for (const raw of values) {
       const m = /^([^=;\s]+)=([^;]*)/.exec(raw);
-      if (m) this.cookies.set(m[1], m[2]);
+      if (m) jar.set(m[1], m[2]);
     }
   }
   async request(url, { method = "GET", headers = {}, body, json, maxBytes = this.maxBytes, timeoutMs = this.timeoutMs, redirect = "follow", maxRedirects = this.maxRedirects } = {}) {
@@ -43,50 +136,64 @@ export class HttpSession {
       currentBody = JSON.stringify(json);
       baseHeaders["content-type"] = "application/json";
     }
+
     const deadline = Date.now() + timeoutMs;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.max(0, deadline - Date.now()));
+    try {
+      for (let hop = 0; ; hop += 1) {
+        if (controller.signal.aborted || deadline - Date.now() <= 0) throw timeoutError(current.hostname);
 
-    for (let hop = 0; ; hop += 1) {
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) throw new ProviderError("UPSTREAM_TIMEOUT", `${current.hostname}: request timed out`);
-      const requestHeaders = { ...baseHeaders };
-      const cookie = this.cookieHeader();
-      if (cookie) requestHeaders.cookie = cookie;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), remaining);
-      let res;
-      try {
-        res = await this.fetchImpl(current, { method: currentMethod, headers: requestHeaders, body: currentBody, redirect: "manual", signal: controller.signal });
-      } catch (e) {
-        clearTimeout(timer);
-        throw new ProviderError(e?.name === "AbortError" ? "UPSTREAM_TIMEOUT" : "UPSTREAM_NETWORK", `${current.hostname}: ${e?.message || "network error"}`);
-      }
-      clearTimeout(timer);
-      this.absorbCookies(res.headers);
+        const requestHeaders = { ...baseHeaders };
+        const explicitCookie = headerValue(requestHeaders, "cookie");
+        deleteHeader(requestHeaders, "cookie");
+        const scopedCookie = this.cookieHeader(current);
+        const cookie = [explicitCookie, scopedCookie].filter(Boolean).join("; ");
+        if (cookie) requestHeaders.cookie = cookie;
 
-      const isRedirect = REDIRECT_STATUSES.has(res.status);
-      if (isRedirect && redirect === "error") throw new ProviderError("UPSTREAM_REDIRECT", `${current.hostname}: unexpected HTTP ${res.status}`);
-      if (isRedirect && redirect === "follow") {
-        if (hop >= maxRedirects) throw new ProviderError("TOO_MANY_REDIRECTS", `${current.hostname}: more than ${maxRedirects} redirects`);
-        const location = res.headers.get("location");
-        if (!location) throw new ProviderError("UPSTREAM_REDIRECT", `${current.hostname}: redirect missing Location header`);
-        const next = validateExternalUrl(new URL(location, current));
-        if (res.status === 303 || ((res.status === 301 || res.status === 302) && currentMethod === "POST")) {
-          currentMethod = "GET";
-          currentBody = undefined;
-          delete baseHeaders["content-type"];
-          delete baseHeaders["content-length"];
+        let res;
+        try {
+          res = await this.fetchImpl(current, { method: currentMethod, headers: requestHeaders, body: currentBody, redirect: "manual", signal: controller.signal });
+        } catch (e) {
+          if (controller.signal.aborted || e?.name === "AbortError") throw timeoutError(current.hostname);
+          throw new ProviderError("UPSTREAM_NETWORK", `${current.hostname}: ${e?.message || "network error"}`);
         }
-        current = next;
-        continue;
-      }
 
-      if (res.url) validateExternalUrl(res.url);
-      const len = Number(res.headers.get("content-length") || 0);
-      if (len > maxBytes) throw new ProviderError("RESPONSE_TOO_LARGE", `Response exceeds ${maxBytes} bytes`);
-      const ab = await res.arrayBuffer();
-      if (ab.byteLength > maxBytes) throw new ProviderError("RESPONSE_TOO_LARGE", `Response exceeds ${maxBytes} bytes`);
-      const bytes = new Uint8Array(ab);
-      return { status: res.status, ok: res.ok, headers: res.headers, bytes, text: new TextDecoder().decode(bytes), url: res.url || current.href, location: res.headers.get("location") };
+        this.absorbCookies(current, res.headers);
+        const isRedirect = REDIRECT_STATUSES.has(res.status);
+        if (isRedirect && redirect === "error") {
+          cancelBody(res.body);
+          throw new ProviderError("UPSTREAM_REDIRECT", `${current.hostname}: unexpected HTTP ${res.status}`);
+        }
+        if (isRedirect && redirect === "follow") {
+          if (hop >= maxRedirects) {
+            cancelBody(res.body);
+            throw new ProviderError("TOO_MANY_REDIRECTS", `${current.hostname}: more than ${maxRedirects} redirects`);
+          }
+          const location = res.headers.get("location");
+          if (!location) {
+            cancelBody(res.body);
+            throw new ProviderError("UPSTREAM_REDIRECT", `${current.hostname}: redirect missing Location header`);
+          }
+          const next = validateExternalUrl(new URL(location, current));
+          cancelBody(res.body);
+          if (next.origin !== current.origin) stripHostBoundHeaders(baseHeaders);
+          if (res.status === 303 || ((res.status === 301 || res.status === 302) && currentMethod === "POST")) {
+            currentMethod = "GET";
+            currentBody = undefined;
+            deleteHeader(baseHeaders, "content-type");
+            deleteHeader(baseHeaders, "content-length");
+          }
+          current = next;
+          continue;
+        }
+
+        if (res.url) validateExternalUrl(res.url);
+        const bytes = await readBoundedBody(res, { maxBytes, signal: controller.signal, hostname: current.hostname });
+        return { status: res.status, ok: res.ok, headers: res.headers, bytes, text: new TextDecoder().decode(bytes), url: res.url || current.href, location: res.headers.get("location") };
+      }
+    } finally {
+      clearTimeout(timer);
     }
   }
 }

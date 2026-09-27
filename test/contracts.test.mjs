@@ -69,6 +69,83 @@ test("HTTP redirect hop limit is bounded", async () => {
   await assert.rejects(() => session.request("https://m.land.naver.com/start"), (e) => e?.code === "TOO_MANY_REDIRECTS");
 });
 
+test("HTTP total timeout covers response body consumption", async () => {
+  let canceled = false;
+  const fetchImpl = async () => {
+    let timer;
+    const stream = new ReadableStream({
+      start(controller) {
+        timer = setTimeout(() => {
+          controller.enqueue(new TextEncoder().encode("late"));
+          controller.close();
+        }, 80);
+      },
+      cancel() {
+        canceled = true;
+        clearTimeout(timer);
+      },
+    });
+    return new Response(stream, { status: 200 });
+  };
+  const session = new HttpSession({ fetchImpl, timeoutMs: 20 });
+  await assert.rejects(() => session.request("https://m.land.naver.com/slow"), (e) => e?.code === "UPSTREAM_TIMEOUT");
+  assert.equal(canceled, true);
+});
+
+test("HTTP maxBytes is enforced while streaming unknown or understated bodies", async () => {
+  for (const headers of [{}, { "content-length": "1" }]) {
+    let canceled = false;
+    let pulls = 0;
+    const fetchImpl = async () => new Response(new ReadableStream({
+      pull(controller) {
+        pulls += 1;
+        controller.enqueue(new Uint8Array(10));
+      },
+      cancel() {
+        canceled = true;
+      },
+    }), { status: 200, headers });
+    const session = new HttpSession({ fetchImpl, maxBytes: 16 });
+    await assert.rejects(() => session.request("https://m.land.naver.com/chunked"), (e) => e?.code === "RESPONSE_TOO_LARGE");
+    assert.equal(canceled, true);
+    assert.ok(pulls < 10);
+  }
+});
+
+test("HTTP cookies and host-bound credentials do not cross origins on redirects", async () => {
+  const seen = [];
+  const fetchImpl = async (url, options) => {
+    const captured = Object.fromEntries(new Headers(options.headers).entries());
+    seen.push({ url: String(url), headers: captured });
+    if (seen.length === 1) {
+      return new Response("", {
+        status: 302,
+        headers: {
+          location: "https://overpass-api.de/next",
+          "set-cookie": "sid=naver-secret; Path=/",
+        },
+      });
+    }
+    return new Response("ok", { status: 200 });
+  };
+  const session = new HttpSession({ fetchImpl });
+  await session.request("https://m.land.naver.com/start", {
+    headers: {
+      Authorization: "Bearer synthetic",
+      "Proxy-Authorization": "Basic synthetic",
+      Cookie: "manual=initial",
+    },
+  });
+  assert.equal(seen[0].headers.authorization, "Bearer synthetic");
+  assert.equal(seen[0].headers.cookie, "manual=initial");
+  assert.equal(seen[1].headers.authorization, undefined);
+  assert.equal(seen[1].headers["proxy-authorization"], undefined);
+  assert.equal(seen[1].headers.cookie, undefined);
+
+  await session.request("https://m.land.naver.com/again");
+  assert.equal(seen[2].headers.cookie, "sid=naver-secret");
+});
+
 test("Naver search only accepts the verified mobile complex redirect shape", () => {
   const good = parseSearchRedirect("https://m.land.naver.com/complex/info/4565", "인창동 성원2차");
   assert.equal(good.complex_no, "4565");
