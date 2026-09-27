@@ -240,7 +240,6 @@ test("Overpass fallback continues after a network failure", async () => {
   }
 });
 
-
 test("compatibility facility grouping separates stations schools and childcare", () => {
   const g = groupFacilities([
     { name: "역", railway: "station", amenity: null, station: null },
