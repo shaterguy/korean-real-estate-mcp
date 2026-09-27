@@ -220,9 +220,9 @@ export function projectListingRows(rows, size, allowlist = VERIFIED_LISTING_FIEL
 export async function currentListings({ complexNo, tradeType = "A1", size = 100 }) {
   const s = new HttpSession({ userAgent: UA, maxBytes: 5_000_000 });
   const requestSize = Math.min(100, Math.max(1, size));
-  const payload = { complexNumber: String(complexNo), tradeTypes: [tradeType], pyeongTypes: [], dongNumbers: [], userChannelType: "PC", articleSortType: "RANKING_DESC", seed: "", lastInfo: [], size: requestSize };
+  const payload = { complexNumber: String(complexNo), tradeTypes: [tradeType], pyeongTypes: [], dongNumbers: [], userChannelType: "PC", articleSortType: "RANKING_DESC", lastInfo: [], size: requestSize };
   const cacheKey = `detail:${complexNo}:${tradeType}:${requestSize}`;
-  const r = await controlled(cacheKey, () => s.request(NAVER_DETAIL_URL, { method: "POST", headers: { origin: "https://fin.land.naver.com", referer: `https://fin.land.naver.com/complexes/${complexNo}?tab=transaction` }, json: payload, maxBytes: 5_000_000 }), 10_000);
+  const r = await controlled(cacheKey, () => s.request(NAVER_DETAIL_URL, { method: "POST", headers: { origin: "https://fin.land.naver.com", referer: `https://fin.land.naver.com/complexes/${complexNo}?tab=article` }, json: payload, maxBytes: 5_000_000 }), 10_000);
   ensureOk(r, "current listings");
   const j = parseJson(r, "current listings");
   const res = j.result || {};

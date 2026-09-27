@@ -43,6 +43,18 @@ export function parseCsv(text) {
   const head=rows[hi].map((x,i)=>i===0?String(x).replace(/^\uFEFF/,"").trim():String(x).trim());
   return rows.slice(hi+1).filter(r=>r.some(x=>String(x).trim())).map(r=>Object.fromEntries(head.map((h,i)=>[h,String(r[i]??"").trim()])));
 }
+export function dedupeSourceRows(rows) {
+  const seen = new Set();
+  const out = [];
+  for (const row of rows) {
+    const no = String(row?.["NO"] || "").trim();
+    const key = no ? `NO:${no}` : `ROW:${JSON.stringify(row)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
+}
 function form(region,{dealType="sale",fromDate,toDate}={}) { return {
   srhThingNo:"A",srhDelngSecd:dealType==="sale"?"1":"2",srhAddrGbn:"1",srhLfstsSecd:"1",sidoNm:region.province||"전체",sggNm:region.district||"전체",emdNm:region.dong||"전체",loadNm:"전체",areaNm:"전체",hsmpNm:"전체",mobileAt:"",
   srhFromDt:fromDate,srhToDt:toDate,srhNewRonSecd:"",srhSidoCd:region.lawd_cd.slice(0,2),srhSggCd:region.lawd_cd,srhEmdCd:region.dong?region.emd_code:"",srhLoadCd:"",srhHsmpCd:"",srhRoadNm:"",srhArea:"",srhLrArea:"",srhFromAmount:"",srhToAmount:""
@@ -51,7 +63,7 @@ function dateFromRow(r){ const ym=String(r["계약년월"]||""); const d=String(
 export async function transactions({ region, complexName, months=6, dealType="sale", limit=500 }={}) {
   const resolved=typeof region==="string"?await resolveRegion(region):region; const s=await startSession(); const toDate=isoDate(new Date()), fromDate=isoDate(monthsAgoDate(Math.max(1,Math.min(12,months)))); const f=form(resolved,{dealType,fromDate,toDate});
   const cr=await s.request(COUNT,{method:"POST",headers:{...headers(),"content-type":"application/x-www-form-urlencoded"},body:formBody(f),maxBytes:10000}); if(!cr.ok) throw new ProviderError("RTMS_HTTP",`count HTTP ${cr.status}`,{sourceApi:COUNT}); const cj=parseJson(cr.text,"count"); const announced=Number(cj.cnt); if(!Number.isFinite(announced)) throw new ProviderError("RTMS_CONTRACT","count missing"); if(announced>5000) throw new ProviderError("RESULT_TOO_LARGE",`RTMS query would return ${announced} rows; narrow the region/date range`);
-  const rr=await s.request(CSV,{method:"POST",headers:{...headers(),"content-type":"application/x-www-form-urlencoded"},body:formBody(f),maxBytes:64_000_000,timeoutMs:60000}); if(!rr.ok) throw new ProviderError("RTMS_HTTP",`CSV HTTP ${rr.status}`,{sourceApi:CSV}); const text=new TextDecoder("euc-kr").decode(rr.bytes); let rows=parseCsv(text); const target=complexName?normalizeName(complexName):null; if(target) rows=rows.filter(r=>{const n=normalizeName(r["단지명"]); return n===target||n.includes(target)||target.includes(n);});
-  const data=rows.map(r=>({ source:"MOLIT_RTMS", transaction_type:dealType==="sale"?"sale":"lease", region:r["시군구"], lot:r["번지"]||null, complex_name:r["단지명"]||null, exclusive_area_m2:numberValue(r["전용면적(㎡)"]), contract_date:dateFromRow(r), price_manwon:dealType==="sale"?numberValue(r["거래금액(만원)"]):null, deposit_manwon:dealType!=="sale"?numberValue(r["보증금(만원)"]):null, monthly_rent_manwon:dealType!=="sale"?numberValue(r["월세금(만원)"]):null, floor:numberValue(r["층"]), build_year:numberValue(r["건축년도"]), road_name:r["도로명"]||null, cancellation_date:(r["해제사유발생일"]&&r["해제사유발생일"]!=="-")?r["해제사유발생일"]:null, transaction_method:r["거래유형"]||null })).filter(x=>!x.cancellation_date).sort((a,b)=>String(b.contract_date).localeCompare(String(a.contract_date))).slice(0,limit);
-  return { resolved_region:resolved, announced_count:announced, matched_count:rows.length, transactions:data, source_api:CSV, from_date:fromDate,to_date:toDate };
+  const rr=await s.request(CSV,{method:"POST",headers:{...headers(),"content-type":"application/x-www-form-urlencoded"},body:formBody(f),maxBytes:64_000_000,timeoutMs:60000}); if(!rr.ok) throw new ProviderError("RTMS_HTTP",`CSV HTTP ${rr.status}`,{sourceApi:CSV}); const text=new TextDecoder("euc-kr").decode(rr.bytes); let rows=dedupeSourceRows(parseCsv(text)); const target=complexName?normalizeName(complexName):null; if(target) rows=rows.filter(r=>{const n=normalizeName(r["단지명"]); return n===target||n.includes(target)||target.includes(n);});
+  const data=rows.map(r=>({ source:"MOLIT_RTMS", source_row_no:r["NO"]||null, transaction_type:dealType==="sale"?"sale":"lease", lease_type:dealType!=="sale"?(r["전월세구분"]||null):null, region:r["시군구"], lot:r["번지"]||null, complex_name:r["단지명"]||null, exclusive_area_m2:numberValue(r["전용면적(㎡)"]), contract_date:dateFromRow(r), price_manwon:dealType==="sale"?numberValue(r["거래금액(만원)"]):null, deposit_manwon:dealType!=="sale"?numberValue(r["보증금(만원)"]):null, monthly_rent_manwon:dealType!=="sale"?numberValue(r["월세금(만원)"]):null, floor:numberValue(r["층"]), build_year:numberValue(r["건축년도"]), road_name:r["도로명"]||null, cancellation_date:(r["해제사유발생일"]&&r["해제사유발생일"]!=="-")?r["해제사유발생일"]:null, transaction_method:r["거래유형"]||null, contract_period:r["계약기간"]||null, contract_type:r["계약구분"]||null, renewal_right_used:r["갱신요구권 사용"]||null, previous_deposit_manwon:dealType!=="sale"?numberValue(r["종전계약 보증금(만원)"]):null, previous_monthly_rent_manwon:dealType!=="sale"?numberValue(r["종전계약 월세(만원)"]):null, housing_type:r["주택유형"]||null })).filter(x=>!x.cancellation_date).sort((a,b)=>String(b.contract_date).localeCompare(String(a.contract_date))).slice(0,limit);
+  return { resolved_region:resolved, announced_count:announced, matched_count:rows.length, returned_count:data.length, transactions:data, source_api:CSV, from_date:fromDate,to_date:toDate, dedupe_policy:"response_source_row_no_only; distinct official rows are preserved even when their visible transaction fields match" };
 }

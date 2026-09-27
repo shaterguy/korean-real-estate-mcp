@@ -4,9 +4,9 @@ import { z } from "zod";
 import { TOOL_NAMES, TOOL_INPUT_SCHEMAS } from "../src/server.mjs";
 import { HttpSession } from "../src/providers/http.mjs";
 import { NaverRequestController, VERIFIED_LISTING_FIELD_ALLOWLIST, parsePriceHtml, parseSearchRedirect, projectListingRows, sanitizeListingRows } from "../src/providers/naver-land.mjs";
-import { parseCsv } from "../src/providers/rtms.mjs";
+import { dedupeSourceRows, parseCsv } from "../src/providers/rtms.mjs";
 import { normalizeName } from "../src/common.mjs";
-import { midpointRegionQuery, selectActualComparison } from "../src/services.mjs";
+import { groupByArea, groupFacilities, midpointRegionQuery, selectActualComparison } from "../src/services.mjs";
 
 test("required tool surface", () => {
   for (const n of ["search_property", "get_market_price", "find_midpoint_property", "get_current_listings", "compare_actual_vs_asking", "system_health"]) assert.ok(TOOL_NAMES.includes(n));
@@ -204,4 +204,62 @@ test("unverified Naver listing fields are never exported and verified projection
   assert.deepEqual(verifiedFixture, [{ title: "A B", price: 123 }]);
   assert.equal(Object.hasOwn(verifiedFixture[0], "extra"), false);
   assert.equal(Object.hasOwn(verifiedFixture[0], "nested"), false);
+});
+
+
+test("market area statistics include min/median/average/max", () => {
+  const grouped = groupByArea([
+    { exclusive_area_m2: 84.9, price_manwon: 70000 },
+    { exclusive_area_m2: 84.8, price_manwon: 74000 },
+    { exclusive_area_m2: 84.7, price_manwon: 76000 },
+  ]);
+  assert.equal(grouped.length, 1);
+  assert.equal(grouped[0].avg_price_manwon, 73333.3);
+  assert.equal(grouped[0].median_price_manwon, 74000);
+  assert.equal(grouped[0].min_price_manwon, 70000);
+  assert.equal(grouped[0].max_price_manwon, 76000);
+  assert.deepEqual(grouped[0].price_manwon, { count: 3, min: 70000, median: 74000, average: 73333.3, max: 76000 });
+});
+
+test("Overpass fallback continues after a network failure", async () => {
+  const originalFetch = globalThis.fetch;
+  const seen = [];
+  globalThis.fetch = async (url) => {
+    seen.push(String(url));
+    if (String(url).includes("overpass-api.de")) throw new Error("synthetic first endpoint failure");
+    return new Response(JSON.stringify({ elements: [{ type: "node", id: 1, lat: 37.6, lon: 127.1, tags: { amenity: "school", name: "테스트학교" } }] }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const places = await import("../src/providers/places.mjs?fallback-test="+Date.now());
+    const result = await places.nearby({ lat: 37.6, lon: 127.1, radius: 300, categories: ["school"] });
+    assert.equal(result.items[0].name, "테스트학교");
+    assert.ok(seen.some(x => x.includes("overpass-api.de")));
+    assert.ok(seen.some(x => x.includes("overpass.kumi.systems")));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+
+test("compatibility facility grouping separates stations schools and childcare", () => {
+  const g = groupFacilities([
+    { name: "역", railway: "station", amenity: null, station: null },
+    { name: "학교", railway: null, amenity: "school", station: null },
+    { name: "어린이집", railway: null, amenity: "childcare", station: null },
+  ]);
+  assert.equal(g.stations.length, 1);
+  assert.equal(g.schools.length, 1);
+  assert.equal(g.childcare.length, 1);
+});
+
+
+test("RTMS source-row dedupe preserves distinct official rows", () => {
+  const rows = [
+    { NO: "285", "계약일": "11", "보증금(만원)": "10,000" },
+    { NO: "286", "계약일": "11", "보증금(만원)": "10,000" },
+    { NO: "285", "계약일": "11", "보증금(만원)": "10,000" },
+  ];
+  const out = dedupeSourceRows(rows);
+  assert.equal(out.length, 2);
+  assert.deepEqual(out.map((x) => x.NO), ["285", "286"]);
 });
