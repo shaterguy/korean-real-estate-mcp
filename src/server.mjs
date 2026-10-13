@@ -31,6 +31,13 @@ function register(server, name, description, inputSchema, handler, source = "COM
   });
 }
 
+export function isAllowedLoopbackRequest(headers, port) {
+  const allowedAuthorities = ["127.0.0.1:" + port, "localhost:" + port];
+  if (!allowedAuthorities.includes(headers.host)) return false;
+  return headers.origin === undefined ||
+    allowedAuthorities.some((authority) => headers.origin === "http://" + authority);
+}
+
 export const TOOL_NAMES = Object.freeze(Object.keys(TOOL_INPUT_SCHEMAS));
 
 export function createMcpServer() {

@@ -1,10 +1,77 @@
 import { ProviderError } from "../common.mjs";
+import { getRequestSignal } from "../request-context.mjs";
 
 export const HOST_ALLOWLIST = new Set([
   "rt.molit.go.kr", "m.land.naver.com", "fin.land.naver.com", "nominatim.openstreetmap.org",
   "overpass-api.de", "overpass.kumi.systems", "overpass.nchc.org.tw",
 ]);
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+const PROVIDER_LIMITS = Object.freeze({ rtms: 3, naver: 3, nominatim: 1, overpass: 2 });
+const providerStates = new Map(Object.entries(PROVIDER_LIMITS).map(([key, max]) => [
+  key, { active: 0, max, queue: [], nextAt: 0, spacingMs: key === "nominatim" ? 1050 : 0 },
+]));
+function providerFamily(hostname) {
+  if (hostname === "rt.molit.go.kr") return "rtms";
+  if (hostname === "m.land.naver.com" || hostname === "fin.land.naver.com") return "naver";
+  if (hostname === "nominatim.openstreetmap.org") return "nominatim";
+  return "overpass";
+}
+function cancelledError() {
+  return new ProviderError("REQUEST_CANCELLED", "Caller disconnected or aborted");
+}
+function releaseProviderSlot(state) {
+  const next = state.queue.shift();
+  if (next) {
+    next.signal.removeEventListener("abort", next.onAbort);
+    next.resolve();
+  } else {
+    state.active -= 1;
+  }
+}
+async function waitPacing(milliseconds, signal) {
+  if (!milliseconds) return;
+  await new Promise((resolve, reject) => {
+    const onAbort = () => { clearTimeout(timer); reject(cancelledError()); };
+    const timer = setTimeout(() => { signal.removeEventListener("abort", onAbort); resolve(); }, milliseconds);
+    signal.addEventListener("abort", onAbort, { once: true });
+    if (signal.aborted) onAbort();
+  });
+}
+async function acquireProviderSlot(hostname, signal) {
+  const state = providerStates.get(providerFamily(hostname));
+  if (signal.aborted) throw cancelledError();
+  if (state.active < state.max) {
+    state.active += 1;
+  } else {
+    if (state.queue.length >= 24) throw new ProviderError("PROVIDER_BUSY", hostname + ": provider queue full");
+    await new Promise((resolve, reject) => {
+      const entry = { resolve, reject, signal, onAbort: null };
+      entry.onAbort = () => {
+        const index = state.queue.indexOf(entry);
+        if (index >= 0) { state.queue.splice(index, 1); reject(cancelledError()); }
+      };
+      state.queue.push(entry);
+      signal.addEventListener("abort", entry.onAbort, { once: true });
+      if (signal.aborted) entry.onAbort();
+    });
+  }
+  const release = () => releaseProviderSlot(state);
+  try {
+    if (state.spacingMs) {
+      const now = Date.now();
+      const startAt = Math.max(now, state.nextAt);
+      state.nextAt = startAt + state.spacingMs;
+      await waitPacing(startAt - now, signal);
+    }
+    if (signal.aborted) throw cancelledError();
+    return release;
+  } catch (e) {
+    release();
+    throw e;
+  }
+}
+
 const HOST_BOUND_HEADERS = new Set(["cookie", "authorization", "proxy-authorization"]);
 
 function deleteHeader(headers, name) {
@@ -28,11 +95,14 @@ function cancelBody(body) {
 function timeoutError(hostname) {
   return new ProviderError("UPSTREAM_TIMEOUT", `${hostname}: request timed out`);
 }
-async function readChunk(reader, signal, hostname) {
-  if (signal.aborted) throw timeoutError(hostname);
+function cancellationError(hostname, timerSignal) {
+  return timerSignal.aborted ? timeoutError(hostname) : new ProviderError("REQUEST_CANCELLED", hostname + ": caller disconnected");
+}
+async function readChunk(reader, signal, hostname, timerSignal) {
+  if (signal.aborted) throw cancellationError(hostname, timerSignal);
   let onAbort;
   const aborted = new Promise((_, reject) => {
-    onAbort = () => reject(timeoutError(hostname));
+    onAbort = () => reject(cancellationError(hostname, timerSignal));
     signal.addEventListener("abort", onAbort, { once: true });
   });
   try {
@@ -41,7 +111,7 @@ async function readChunk(reader, signal, hostname) {
     signal.removeEventListener("abort", onAbort);
   }
 }
-async function readBoundedBody(res, { maxBytes, signal, hostname }) {
+async function readBoundedBody(res, { maxBytes, signal, hostname, timerSignal }) {
   const rawLength = res.headers.get("content-length");
   const declaredLength = rawLength === null ? null : Number(rawLength);
   if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
@@ -55,7 +125,7 @@ async function readBoundedBody(res, { maxBytes, signal, hostname }) {
   let total = 0;
   try {
     for (;;) {
-      const { done, value } = await readChunk(reader, signal, hostname);
+      const { done, value } = await readChunk(reader, signal, hostname, timerSignal);
       if (done) break;
       const chunk = value instanceof Uint8Array ? value : new Uint8Array(value);
       total += chunk.byteLength;
@@ -73,13 +143,13 @@ async function readBoundedBody(res, { maxBytes, signal, hostname }) {
       const pending = reader.cancel(e);
       if (pending?.catch) pending.catch(() => {});
     } catch {}
-    if (e?.code === "UPSTREAM_TIMEOUT" || e?.code === "RESPONSE_TOO_LARGE") throw e;
-    if (signal.aborted || e?.name === "AbortError") throw timeoutError(hostname);
+    if (e?.code === "UPSTREAM_TIMEOUT" || e?.code === "RESPONSE_TOO_LARGE" || e?.code === "REQUEST_CANCELLED") throw e;
+    if (signal.aborted || e?.name === "AbortError") throw cancellationError(hostname, timerSignal);
     throw new ProviderError("UPSTREAM_NETWORK", `${hostname}: ${e?.message || "response body read failed"}`);
   } finally {
     try { reader.releaseLock(); } catch {}
   }
-  if (signal.aborted) throw timeoutError(hostname);
+  if (signal.aborted) throw cancellationError(hostname, timerSignal);
 
   const bytes = new Uint8Array(total);
   let offset = 0;
@@ -139,10 +209,13 @@ export class HttpSession {
 
     const deadline = Date.now() + timeoutMs;
     const controller = new AbortController();
+    const callerSignal = getRequestSignal();
+    const signal = callerSignal ? AbortSignal.any([controller.signal, callerSignal]) : controller.signal;
     const timer = setTimeout(() => controller.abort(), Math.max(0, deadline - Date.now()));
     try {
       for (let hop = 0; ; hop += 1) {
-        if (controller.signal.aborted || deadline - Date.now() <= 0) throw timeoutError(current.hostname);
+        if (deadline - Date.now() <= 0) throw timeoutError(current.hostname);
+        if (signal.aborted) throw cancellationError(current.hostname, controller.signal);
 
         const requestHeaders = { ...baseHeaders };
         const explicitCookie = headerValue(requestHeaders, "cookie");
@@ -151,46 +224,65 @@ export class HttpSession {
         const cookie = [explicitCookie, scopedCookie].filter(Boolean).join("; ");
         if (cookie) requestHeaders.cookie = cookie;
 
-        let res;
+        let releaseSlot;
         try {
-          res = await this.fetchImpl(current, { method: currentMethod, headers: requestHeaders, body: currentBody, redirect: "manual", signal: controller.signal });
+          releaseSlot = await acquireProviderSlot(current.hostname, signal);
         } catch (e) {
-          if (controller.signal.aborted || e?.name === "AbortError") throw timeoutError(current.hostname);
-          throw new ProviderError("UPSTREAM_NETWORK", `${current.hostname}: ${e?.message || "network error"}`);
+          if (controller.signal.aborted) throw timeoutError(current.hostname);
+          throw e;
         }
+        try {
+          let res;
+          try {
+            res = await this.fetchImpl(current, { method: currentMethod, headers: requestHeaders, body: currentBody, redirect: "manual", signal });
+          } catch (e) {
+            if (signal.aborted || e?.name === "AbortError") throw cancellationError(current.hostname, controller.signal);
+            throw new ProviderError("UPSTREAM_NETWORK", `${current.hostname}: ${e?.message || "network error"}`);
+          }
 
-        this.absorbCookies(current, res.headers);
-        const isRedirect = REDIRECT_STATUSES.has(res.status);
-        if (isRedirect && redirect === "error") {
-          cancelBody(res.body);
-          throw new ProviderError("UPSTREAM_REDIRECT", `${current.hostname}: unexpected HTTP ${res.status}`);
-        }
-        if (isRedirect && redirect === "follow") {
-          if (hop >= maxRedirects) {
+          this.absorbCookies(current, res.headers);
+          const isRedirect = REDIRECT_STATUSES.has(res.status);
+          if (isRedirect && redirect === "error") {
             cancelBody(res.body);
-            throw new ProviderError("TOO_MANY_REDIRECTS", `${current.hostname}: more than ${maxRedirects} redirects`);
+            throw new ProviderError("UPSTREAM_REDIRECT", `${current.hostname}: unexpected HTTP ${res.status}`);
           }
-          const location = res.headers.get("location");
-          if (!location) {
+          if (isRedirect && redirect === "follow") {
+            if (hop >= maxRedirects) {
+              cancelBody(res.body);
+              throw new ProviderError("TOO_MANY_REDIRECTS", `${current.hostname}: more than ${maxRedirects} redirects`);
+            }
+            const location = res.headers.get("location");
+            if (!location) {
+              cancelBody(res.body);
+              throw new ProviderError("UPSTREAM_REDIRECT", `${current.hostname}: redirect missing Location header`);
+            }
+            const target = new URL(location, current);
             cancelBody(res.body);
-            throw new ProviderError("UPSTREAM_REDIRECT", `${current.hostname}: redirect missing Location header`);
+            const next = validateExternalUrl(target);
+            if ((res.status === 307 || res.status === 308) && currentMethod !== "GET" && currentMethod !== "HEAD" && next.origin !== current.origin) {
+              throw new ProviderError("CROSS_ORIGIN_BODY_REDIRECT", "Redirect may not forward a request body to another origin");
+            }
+            if (next.origin !== current.origin) stripHostBoundHeaders(baseHeaders);
+            if (res.status === 303 || ((res.status === 301 || res.status === 302) && currentMethod === "POST")) {
+              currentMethod = "GET";
+              currentBody = undefined;
+              deleteHeader(baseHeaders, "content-type");
+              deleteHeader(baseHeaders, "content-length");
+            }
+            current = next;
+            continue;
           }
-          const next = validateExternalUrl(new URL(location, current));
-          cancelBody(res.body);
-          if (next.origin !== current.origin) stripHostBoundHeaders(baseHeaders);
-          if (res.status === 303 || ((res.status === 301 || res.status === 302) && currentMethod === "POST")) {
-            currentMethod = "GET";
-            currentBody = undefined;
-            deleteHeader(baseHeaders, "content-type");
-            deleteHeader(baseHeaders, "content-length");
-          }
-          current = next;
-          continue;
-        }
 
-        if (res.url) validateExternalUrl(res.url);
-        const bytes = await readBoundedBody(res, { maxBytes, signal: controller.signal, hostname: current.hostname });
-        return { status: res.status, ok: res.ok, headers: res.headers, bytes, text: new TextDecoder().decode(bytes), url: res.url || current.href, location: res.headers.get("location") };
+          if (res.url) {
+            try { validateExternalUrl(res.url); }
+            catch (e) { cancelBody(res.body); throw e; }
+          }
+          const bytes = await readBoundedBody(res, { maxBytes, signal, hostname: current.hostname, timerSignal: controller.signal });
+          if (signal.aborted) throw cancellationError(current.hostname, controller.signal);
+          return { status: res.status, ok: res.ok, headers: res.headers, bytes, text: new TextDecoder().decode(bytes), url: res.url || current.href, location: res.headers.get("location") };
+        } finally {
+          releaseSlot();
+        }
       }
     } finally {
       clearTimeout(timer);
